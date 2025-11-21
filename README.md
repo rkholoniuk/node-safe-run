@@ -1,4 +1,14 @@
-# node-safe-run
+# 🔐 node-safe-run  
+### Secure Node.js execution with automatic permission enforcement
+
+`node-safe-run` is a Node.js launcher that activates the built-in
+permission model by default, blocks unsafe child processes, restricts filesystem
+access, and prevents malicious NPM postinstall scripts, hidden VS Code extension
+nodes, or obfuscated malware from executing arbitrary shell commands.
+
+### ✅ Supported Node.js Versions
+- **Node.js 24.x** — Full permission support (recommended)
+- **Node.js 22.x** — Full permission support
 
 A small shim to run Node with the permission model enabled by default, log executions, and deny dangerous capabilities.
 
