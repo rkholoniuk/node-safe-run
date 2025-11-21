@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# node-safe-run
+# A small shim to run Node.js with the permissions system enabled by default.
+#
+# Usage:
+#   node-safe-run app.js
+#   node-safe-run -e "console.log('hi')"
+#
+# You can configure behaviour via env vars:
+#   NODE_SAFE_RUN_NODE_BIN   - which node binary to use (default: `which node`)
+#   NODE_SAFE_RUN_LOG_FILE   - where to log executions (default: ~/.node_exec_log)
+#   NODE_UNSAFE_OK=1         - completely bypass safety and run Node as-is
+#   NODE_SAFE_RUN_ALLOW_FS_READ - what paths to allow for reading (default: ".")
+#   NODE_SAFE_RUN_ALLOW_FS_WRITE - what paths to allow for writing (default: none)
+#   NODE_SAFE_RUN_ALLOW_WASI     - allow WASI if set to "1"
+#
+# NOTE:
+#   Node 24+ uses the stable flag `--permission`. There is no
+#   `--experimental-permission` anymore, and child processes are denied
+#   simply by *not* granting that permission.
+
+# ---------------------------------------------------------------------------
+# Resolve real Node binary
+# ---------------------------------------------------------------------------
+
+REAL_NODE="${NODE_SAFE_RUN_NODE_BIN:-$(command -v node || true)}"
+
+if [[ -z "${REAL_NODE}" || ! -x "${REAL_NODE}" ]]; then
+  echo "ERROR[node-safe-run]: Could not find a usable 'node' binary." >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+LOG_FILE="${NODE_SAFE_RUN_LOG_FILE:-$HOME/.node_exec_log}"
+
+{
+  echo "==== $(date) ===="
+  echo "PID: $$"
+  echo "PPID: $PPID"
+  echo "CWD: $(pwd)"
+  echo "CMD: $0"
+  echo "NODE: $REAL_NODE"
+  echo "ARGS: $*"
+  echo
+} >> "${LOG_FILE}" 2>/dev/null || true
+
+# ---------------------------------------------------------------------------
+# Unsafe bypass mode
+# ---------------------------------------------------------------------------
+
+if [[ "${NODE_UNSAFE_OK:-0}" == "1" ]]; then
+  # Run Node directly, no permissions enforced
+  exec "${REAL_NODE}" "$@"
+  # unreachable
+fi
+
+# ---------------------------------------------------------------------------
+# Build permission flags
+# ---------------------------------------------------------------------------
+
+PERM_ARGS=( "--permission" )
+
+# Allow FS read (default current directory only)
+if [[ -n "${NODE_SAFE_RUN_ALLOW_FS_READ:-}" ]]; then
+  PERM_ARGS+=( "--allow-fs-read=${NODE_SAFE_RUN_ALLOW_FS_READ}" )
+else
+  PERM_ARGS+=( "--allow-fs-read=." )
+fi
+
+# Allow FS write (optional; default: no writes)
+if [[ -n "${NODE_SAFE_RUN_ALLOW_FS_WRITE:-}" ]]; then
+  PERM_ARGS+=( "--allow-fs-write=${NODE_SAFE_RUN_ALLOW_FS_WRITE}" )
+fi
+
+# Allow WASI (optional)
+if [[ "${NODE_SAFE_RUN_ALLOW_WASI:-0}" == "1" ]]; then
+  PERM_ARGS+=( "--allow-wasi" )
+fi
+
+# NOTE: we intentionally do NOT grant:
+#   --allow-child-process
+#   --allow-worker
+#   --allow-addons
+#   etc.
+# That means they are DENIED by default under the permission model.
+
+# ---------------------------------------------------------------------------
+# Run Node with enforced permissions
+# ---------------------------------------------------------------------------
+
+exec "${REAL_NODE}" "${PERM_ARGS[@]}" "$@"
