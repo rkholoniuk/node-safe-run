@@ -33,6 +33,19 @@ if [[ -z "${REAL_NODE}" || ! -x "${REAL_NODE}" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Detect permission support
+# ---------------------------------------------------------------------------
+
+supports_permission() {
+  # Returns 0 if REAL_NODE supports --permission, 1 otherwise.
+  if "${REAL_NODE}" --help 2>/dev/null | grep -q -- '--permission'; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 
@@ -57,6 +70,18 @@ if [[ "${NODE_UNSAFE_OK:-0}" == "1" ]]; then
   # Run Node directly, no permissions enforced
   exec "${REAL_NODE}" "$@"
   # unreachable
+fi
+
+# ---------------------------------------------------------------------------
+# If permissions are NOT supported, fall back gracefully
+# ---------------------------------------------------------------------------
+
+if ! supports_permission; then
+  {
+    echo "[node-safe-run] WARNING: Node at '${REAL_NODE}' does NOT support '--permission'."
+    echo "[node-safe-run] skip execution."
+  } >&2
+  exit 1
 fi
 
 # ---------------------------------------------------------------------------

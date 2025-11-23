@@ -95,15 +95,35 @@ if [[ "${NODE_UNSAFE_OK:-0}" == "1" ]]; then
   exit $?
 fi
 
+# --- Permission feature detection -----------------------------------------
+supports_permission() {
+  # Check via help output
+  if "$REAL_NODE" --help 2>/dev/null | grep -q -- '--permission'; then
+    return 0
+  else
+    return 1
+  fi
+}
+
 # 3) Safe mode: enable permission model.
 # By default, when --permission is enabled:
 #   - FS is denied unless explicitly allowed
 #   - Child processes are denied unless --allow-child-process is used
 # Here we allow read access to the current working directory only.
-exec "$REAL_NODE" \
-  --permission \
-  --allow-fs-read=. \
-  "$@"
+if supports_permission; then
+  # Safe execution with Node permissions enabled
+  exec "$REAL_NODE" \
+    --permission \
+    --allow-fs-read=. \
+    "$@"
+else
+  # Fallback if the Node build lacks permission support
+  {
+    echo "[node-safe-run] WARNING: Node at '${REAL_NODE}' does NOT support '--permission'."
+    echo "[node-safe-run] skip execution."
+  } >&2
+  exit 1
+fi
 EOF
 
   chmod +x "$wrapper_node"
