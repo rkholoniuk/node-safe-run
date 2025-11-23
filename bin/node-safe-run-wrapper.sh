@@ -42,6 +42,20 @@ ensure_nvm_node() {
   fi
 }
 
+# ---------------------------------------------------------------------------
+# Detect permission support
+# ---------------------------------------------------------------------------
+
+supports_permission() {
+  # Returns 0 if REAL_NODE supports --permission, 1 otherwise.
+  if "${real_node}" --help 2>/dev/null | grep -q -- '--permission'; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+
 # ---- Actions ---------------------------------------------------------------
 
 install_wrapper() {
@@ -52,6 +66,19 @@ install_wrapper() {
   node_path="$(get_node_path)"
   real_node="$node_dir/node-real"
   wrapper_node="$node_dir/node"
+
+
+  # ---------------------------------------------------------------------------
+  # If permissions are NOT supported, fall back gracefully
+  # ---------------------------------------------------------------------------
+  if ! supports_permission; then
+    {
+      echo "[node-safe-run] WARNING: Node at '${real_node}' does NOT support '--permission'."
+      echo "[node-safe-run] skip execution."
+    } >&2
+    exit 1
+  fi
+
 
   # If node-real already exists, assume wrapper is installed
   if [[ -x "$real_node" ]]; then
