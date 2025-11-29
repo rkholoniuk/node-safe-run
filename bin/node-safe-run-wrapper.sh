@@ -47,14 +47,19 @@ ensure_nvm_node() {
 # ---------------------------------------------------------------------------
 
 supports_permission() {
-  # Returns 0 if REAL_NODE supports --permission, 1 otherwise.
-  if "${real_node}" --help 2>/dev/null | grep -q -- '--permission'; then
+  # Optional argument: path to node binary. If omitted, use current node.
+  local node_bin="${1:-}"
+  if [[ -z "${node_bin}" ]]; then
+    node_bin="$(get_node_path)"
+  fi
+
+  if "$node_bin" --help 2>/dev/null | \
+     grep -q -E -- '(^|[[:space:]])--permission([[:space:]]|$)'; then
     return 0
   else
     return 1
   fi
 }
-
 
 # ---- Actions ---------------------------------------------------------------
 
@@ -67,18 +72,16 @@ install_wrapper() {
   real_node="$node_dir/node-real"
   wrapper_node="$node_dir/node"
 
-
   # ---------------------------------------------------------------------------
   # If permissions are NOT supported, fall back gracefully
   # ---------------------------------------------------------------------------
-  if ! supports_permission; then
+  if ! supports_permission "$node_path"; then
     {
-      echo "[node-safe-run] WARNING: Node at '${real_node}' does NOT support '--permission'."
+      echo "[node-safe-run] WARNING: Node at '${node_path}' does NOT support '--permission'."
       echo "[node-safe-run] skip execution."
     } >&2
     exit 1
   fi
-
 
   # If node-real already exists, assume wrapper is installed
   if [[ -x "$real_node" ]]; then
@@ -124,8 +127,8 @@ fi
 
 # --- Permission feature detection -----------------------------------------
 supports_permission() {
-  # Check via help output
-  if "$REAL_NODE" --help 2>/dev/null | grep -q -- '--permission'; then
+  if "$REAL_NODE" --help 2>/dev/null | \
+     grep -q -E -- '(^|[[:space:]])--permission([[:space:]]|$)'; then
     return 0
   else
     return 1
